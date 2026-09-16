@@ -33,7 +33,11 @@ include(":liquidglass")
 dependencies { implementation(project(":liquidglass")) }
 ```
 
-**方式 B：JitPack**（发布到 GitHub 之后）
+**方式 B：JitPack**（仓库已发布在 [github.com/shufajiaok/LiquidGlass](https://github.com/shufajiaok/LiquidGlass)）
+
+> JitPack 是**按需构建**的：第一次用它会在云端现编一次，所以要先去
+> [jitpack.io/#shufajiaok/LiquidGlass](https://jitpack.io/#shufajiaok/LiquidGlass) 点一下
+> Look up，等它把 0.1.1 那条变成绿色再依赖。之后就是缓存好的了。
 
 ```kotlin
 // settings.gradle.kts
@@ -45,7 +49,7 @@ dependencyResolutionManagement {
 }
 
 // app/build.gradle.kts
-dependencies { implementation("com.github.<你的GitHub用户名>.LiquidGlass:liquidglass:0.1.1") }
+dependencies { implementation("com.github.shufajiaok.LiquidGlass:liquidglass:0.1.1") }
 ```
 
 ### 2. 铺背板
@@ -282,7 +286,7 @@ Compose 的 `Modifier.blur` 只能模糊**节点自己的内容**，模糊不了
 
 ## 从哪来
 
-从个人项目 **HealthCheckIn**（0.7.4）的玻璃引擎里剥出来的（那边还带一个「玻璃实验台」页面，
+从个人项目 **HealthCheckIn**（0.7.4）的玻璃引擎里剥出来的，仓库在 [shufajiaok/LiquidGlass](https://github.com/shufajiaok/LiquidGlass)（那边还带一个「玻璃实验台」页面，
 可以在真机上拖动一块玻璃、实时拖六个参数，这套数值就是那样调出来的）。
 
 剥离时只做了两件事：把项目特有的配置常量换成 [`GlassDefaults`](liquidglass/src/main/java/com/jiale/liquidglass/GlassDefaults.kt)，
