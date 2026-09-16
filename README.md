@@ -37,7 +37,7 @@ dependencies { implementation(project(":liquidglass")) }
 
 > JitPack 是**按需构建**的：第一次用它会在云端现编一次，所以要先去
 > [jitpack.io/#shufajiaok/LiquidGlass](https://jitpack.io/#shufajiaok/LiquidGlass) 点一下
-> Look up，等它把 0.1.1 那条变成绿色再依赖。之后就是缓存好的了。
+> Look up，等它把 0.1.2 那条变成绿色再依赖。之后就是缓存好的了。
 
 ```kotlin
 // settings.gradle.kts
@@ -49,7 +49,7 @@ dependencyResolutionManagement {
 }
 
 // app/build.gradle.kts
-dependencies { implementation("com.github.shufajiaok.LiquidGlass:liquidglass:0.1.1") }
+dependencies { implementation("com.github.shufajiaok.LiquidGlass:liquidglass:0.1.2") }
 ```
 
 ### 2. 铺背板
