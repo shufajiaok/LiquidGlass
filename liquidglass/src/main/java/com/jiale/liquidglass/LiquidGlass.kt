@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
@@ -142,6 +143,19 @@ data class GlassParams(
     val dispersion: Float = GlassDefaults.DISPERSION,
     /** 边缘光的亮度倍率。1.0 = 自动（越宽越淡），调大可以在很宽的边缘光下也看清。 */
     val edgeGlow: Float = GlassDefaults.EDGE_GLOW,
+    /**
+     * **复刻 0.5.1 的"错位"写法**（默认关 = 现在的正确写法）。
+     *
+     * 0.5.1 的 `BackdropSlice` 用的是 `Modifier.size` —— 它**服从父级约束**，于是节点被夹成了
+     * **组件尺寸**（出血完全没生效），而 `offset(-bleed)` 与坐标换算仍按"组件 + 2×出血"来算。
+     * 于是两件事同时发生：
+     * ① 内容整体往**左上**偏一个 bleed；② **右下角**留出一条没有内容的带（只剩膜层）。
+     * 合起来读作"光从左上斜着进来"，比真折射还强——0.5.1 "效果好"有很大一部分是它。
+     *
+     * ⚠️ 这是**错误对齐**，不是折射：滚动/拖动时玻璃里的内容会和外面脱节。
+     * 它和 [refractMode] / [refractDp] 正交，开不开都不影响两种折射做法。
+     */
+    val legacyBackdrop: Boolean = GlassDefaults.LEGACY_BACKDROP,
 )
 
 val LocalGlassParams = staticCompositionLocalOf { GlassParams() }
@@ -276,6 +290,7 @@ fun LiquidGlassSurface(
                     refractMode = glass.refractMode,
                     dispersionShiftPx = dispersionShiftPx,
                     dispersionBandPx = dispersionBandPx,
+                    legacyBackdrop = glass.legacyBackdrop,
                 )
             }
             // 与周围同浓度的遮罩。少了这层，玻璃内外的明暗对不上，一眼能看出是贴上去的
@@ -457,6 +472,8 @@ private fun BackdropSlice(
     refractMode: RefractMode,
     dispersionShiftPx: Float,
     dispersionBandPx: Float,
+    /** 复刻 0.5.1 的错位写法（节点被夹成组件尺寸）。见 [GlassParams.legacyBackdrop]。 */
+    legacyBackdrop: Boolean,
 ) {
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
@@ -466,6 +483,9 @@ private fun BackdropSlice(
     val element = sizeState.value
     val nodeWidthDp = with(density) { (element.width + bleed * 2).toDp() }
     val nodeHeightDp = with(density) { (element.height + bleed * 2).toDp() }
+    // 组件自己的尺寸（不带出血）：只有在 legacy 那条路上才用
+    val elementWidthDp = with(density) { element.width.toDp() }
+    val elementHeightDp = with(density) { element.height.toDp() }
     val bleedDp = with(density) { bleed.toDp() }
 
     // 背板是按 ContentScale.Crop 铺满屏幕的：先自己算一遍它的缩放与居中偏移，
@@ -519,12 +539,13 @@ private fun BackdropSlice(
     }
 
     // 三遍是加性的，底图必须避开环带（理由见 [buildBaseClip]）。路径同样只跟尺寸有关 → 缓存。
-    val baseClip = remember(element.width, element.height, glassRings, passes) {
+    val baseClip = remember(element.width, element.height, glassRings, passes, legacyBackdrop) {
         val region = glassRings.region
         if (passes > 1 && region != null) {
             buildBaseClip(
-                nodeW = element.width.toFloat() + bleed * 2f,
-                nodeH = element.height.toFloat() + bleed * 2f,
+                // legacy 时节点只有组件那么大，底图也跟着裁到组件范围（多画的部分反正会被丢弃）
+                nodeW = if (legacyBackdrop) element.width.toFloat() else element.width + bleed * 2f,
+                nodeH = if (legacyBackdrop) element.height.toFloat() else element.height + bleed * 2f,
                 ringRegion = region,
             )
         } else {
@@ -532,10 +553,19 @@ private fun BackdropSlice(
         }
     }
 
+    // **0.5.1 的错位写法**：那版用 `Modifier.size`（服从父级约束）→ 节点被夹成**组件尺寸**，
+    // 但下面的 `offset(-bleed)` 和坐标换算仍按"组件 + 2×出血"算。两件事一起发生：
+    // 内容整体偏左上，而节点覆盖不到玻璃的右下角 → 那条带上没有内容、只剩膜层。
+    // 关掉时是现在的正确写法：节点真的带一圈出血，模糊在界外采到真实邻居。
+    val sizeModifier = if (legacyBackdrop) {
+        Modifier.size(elementWidthDp, elementHeightDp)
+    } else {
+        Modifier.requiredSize(nodeWidthDp, nodeHeightDp)
+    }
     Canvas(
         modifier = Modifier
             .offset(x = -bleedDp, y = -bleedDp)
-            .requiredSize(nodeWidthDp, nodeHeightDp)
+            .then(sizeModifier)
             .graphicsLayer {
                 val size = sizeState.value
                 compositingStrategy = CompositingStrategy.Offscreen

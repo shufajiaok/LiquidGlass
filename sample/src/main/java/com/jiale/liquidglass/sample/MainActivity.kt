@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -73,10 +75,15 @@ class MainActivity : ComponentActivity() {
 private fun SampleScreen() {
     val backdrop = remember { createBackdrop() }
     var refractDp by remember { mutableFloatStateOf(GlassDefaults.REFRACT_DP) }
+    var legacyAlign by remember { mutableStateOf(false) }
 
     // 参数一次下发，**这棵子树里所有玻璃一起变**（不用逐个传参）
-    val params = remember(refractDp) {
-        GlassParams(refractDp = refractDp, refractMode = RefractMode.FIELD)
+    val params = remember(refractDp, legacyAlign) {
+        GlassParams(
+            refractDp = refractDp,
+            refractMode = RefractMode.FIELD,
+            legacyBackdrop = legacyAlign,
+        )
     }
 
     CompositionLocalProvider(LocalGlassParams provides params) {
@@ -136,6 +143,13 @@ private fun SampleScreen() {
                     text = "拖到 0 看看：折射带会跟着收窄到没有 —— 效果面积是跟着强度走的。",
                     style = MaterialTheme.typography.bodySmall,
                 )
+
+                // 5) 复刻早期版本那个"错位"写法：内容整体偏左上、右下角空出一条只剩膜层的带。
+                //    它不是折射，是错误对齐 —— 但读起来很像光斜着进来。
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("0.5.1 错位", Modifier.weight(1f))
+                    Switch(checked = legacyAlign, onCheckedChange = { legacyAlign = it })
+                }
             }
         }
     }

@@ -45,7 +45,7 @@ dependencyResolutionManagement {
 }
 
 // app/build.gradle.kts
-dependencies { implementation("com.github.<你的GitHub用户名>.LiquidGlass:liquidglass:0.1.0") }
+dependencies { implementation("com.github.<你的GitHub用户名>.LiquidGlass:liquidglass:0.1.1") }
 ```
 
 ### 2. 铺背板
@@ -128,6 +128,7 @@ CompositionLocalProvider(
 | `edgeWidthDp` | 2.0 | 边缘光带宽度。**越宽整体越淡**，宽度大时用 `edgeGlow` 补亮度 |
 | `edgeGlow` | 1.0 | 边缘光亮度倍率（0.4–2.5） |
 | `dispersion` | 0.35 | 色散（色差）强度 |
+| `legacyBackdrop` | false | **复刻 0.5.1 的"错位"写法**，见下一节 |
 
 **模糊半径和边缘光宽度是 `LiquidGlassSurface` 的入参，不是全局参数** —— 因为它们必须跟着控件尺寸走：
 
@@ -145,6 +146,35 @@ LiquidGlassSurface(
 > 12dp 的模糊放在 32dp 高的胶囊上，里面什么都看不出来。
 
 ---
+
+## `legacyBackdrop`：0.5.1 的那种"错位"（默认关）
+
+**这不是折射，是错误对齐 —— 但看起来很像光斜着进来。**
+
+打开之后，节点改用 `Modifier.size`（它**服从父级约束**）→ 被夹成**组件尺寸**，出血完全不生效：
+
+```kotlin
+// 关（现在）：节点真的比组件大一圈出血，模糊能在界外采到约 3σ 的真实邻居
+Modifier.offset(x = -bleedDp, y = -bleedDp).requiredSize(组件尺寸 + 2×出血)
+
+// 开（0.5.1）：size() 服从父级约束 → 节点被夹成组件尺寸
+Modifier.offset(x = -bleedDp, y = -bleedDp).size(组件尺寸)
+```
+
+**两件事同时发生**（这也是为什么它没法用"平移一点"来近似）：
+
+1. **坐标换算仍按"组件 + 2×出血"算**（`dstOffset`、`transformOrigin` 都是），而节点只有组件那么大
+   → 内容整体往**左上**偏一个 bleed；
+2. 节点**覆盖不到玻璃的右下角**（整整差一个 bleed）→ 那条带上**没有背板内容**，只剩膜层。
+
+合起来读作"光从左上斜着进来"。这个观感在早期版本里是**免费**得到的（那正是一个 bug 的副作用），
+修掉对齐之后它就没了 —— `FIELD` 只在贴边 12.5dp 一条带里折、中心严格不动，观感会明显"变平"。
+
+⚠️ **代价**：滚动/拖动时玻璃里的内容会和外面脱节，右下角会露出一块只有膜层的区域。
+它和 `SCALE` / `FIELD` **正交**（只改节点的测量尺寸，不动任何位移场），所以是个独立开关。
+
+> **一条经验**：复刻一个"效果好但不正确"的行为时，**复刻它的写法，别做等效近似**。
+> 这里试过"只在 `dstOffset` 上加个偏移量"，结果只有①、没有②，完全不像。
 
 ## 它是怎么做的
 
@@ -252,12 +282,36 @@ Compose 的 `Modifier.blur` 只能模糊**节点自己的内容**，模糊不了
 
 ## 从哪来
 
-从个人项目 **HealthCheckIn** 的玻璃引擎里剥出来的（那边还带一个「玻璃实验台」页面，
+从个人项目 **HealthCheckIn**（0.7.4）的玻璃引擎里剥出来的（那边还带一个「玻璃实验台」页面，
 可以在真机上拖动一块玻璃、实时拖六个参数，这套数值就是那样调出来的）。
 
 剥离时只做了两件事：把项目特有的配置常量换成 [`GlassDefaults`](liquidglass/src/main/java/com/jiale/liquidglass/GlassDefaults.kt)，
 把背景实现从"文件路径"泛化成 `ImageBitmap`。**算法与经验注释都是原样保留的** ——
 那些「为什么不这么做」的说明比代码本身值钱。
+
+## 与 HealthCheckIn 的同步
+
+这个库是从上游 App（HealthCheckIn）里剥出来的，**上游还在继续改**。两边是两份代码，
+所以改完上游要手动同步过来 —— 下面这张表就是映射关系：
+
+| 上游 App | 本库 | 差异 |
+|---|---|---|
+| `ui/common/LiquidGlass.kt` | `liquidglass/LiquidGlass.kt` | package、常量的来源（`AppSettings.*` → `GlassDefaults.*`）。**其余逐行一致** |
+| `ui/common/ImageBackground.kt` | `liquidglass/GlassBackdrop.kt` | 参数从 `File` 泛化成 `ImageBitmap`；多了 `rememberBackdropImage` |
+| `Models.kt` 里的 `RefractMode` | `liquidglass/RefractMode.kt` | 去掉了 `@Serializable`（本库不依赖序列化） |
+| `Models.kt` 里的 `GLASS_*` 常量 | `liquidglass/GlassDefaults.kt` | 名字去掉前缀，数值与区间一致 |
+| `AppSettings` + 设置页 / 实验页的滑块 | —— | 本库不含 UI 与持久化，只到 `GlassParams` |
+
+**同步的做法**：把两边的注释与空行去掉后 diff 一次，只应该剩下上面那三类必然差异：
+
+```bash
+grep -vE '^[[:space:]]*(\*|//|/\*|$)' A/LiquidGlass.kt > a.txt
+grep -vE '^[[:space:]]*(\*|//|/\*|$)' B/LiquidGlass.kt > b.txt
+diff a.txt b.txt
+```
+
+出现别的差异就是漂移了，逐条搬过来。**改完两边都要各自编一次** —— 库这边
+`:liquidglass:assembleDebug` 和 `:sample:assembleDebug` 都过，才说明 API 真的还能被调用。
 
 ## License
 

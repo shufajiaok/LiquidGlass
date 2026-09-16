@@ -7,7 +7,7 @@ plugins {
 }
 
 /** 库版本。改了这里，[README](README.md) 里的依赖坐标也要跟着改。 */
-val libraryVersion = "0.1.0"
+val libraryVersion = "0.1.1"
 
 android {
     namespace = "com.jiale.liquidglass"
