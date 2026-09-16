@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 用系统主题，避免示例工程再依赖一套 AppCompat / Material 的资源 -->
+    <style name="Theme.LiquidGlassSample" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
